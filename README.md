@@ -31,13 +31,38 @@ The original Min Theme is a minimal VS Code color theme. This project brings the
 
 - **GNOME Terminal** — color profile via `dconf`
 - **Oh My Zsh** — minimal prompt theme
+- **Companion Zsh plugins** — [`zsh-autosuggestions`](https://github.com/zsh-users/zsh-autosuggestions) and [`zsh-syntax-highlighting`](https://github.com/zsh-users/zsh-syntax-highlighting), cloned into `$ZSH_CUSTOM/plugins/` and added to `plugins=(...)` in `.zshrc`
 
 ## Requirements
 
-- **GNOME Terminal**: `dconf-cli` and `uuid-runtime`
-- **Oh My Zsh**: [Oh My Zsh](https://ohmyz.sh/) installed
+The installer auto-detects your distro and offers to install missing dependencies
+interactively. Supported out of the box: **Debian/Ubuntu** (`apt`) and
+**Arch/Manjaro** (`pacman`). Other distros fall back to manual install.
+
+If you prefer to install dependencies manually:
+
+### Debian / Ubuntu
+
+```bash
+sudo apt install dconf-cli uuid-runtime gnome-terminal zsh
+```
+
+### Arch / Manjaro
+
+```bash
+sudo pacman -S --needed dconf gnome-terminal zsh
+# uuidgen is already provided by util-linux (base system)
+```
+
+### Oh My Zsh (any distro)
+
+```bash
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+```
 
 ## Installation
+
+Tested on Ubuntu, Debian, Arch and Manjaro.
 
 ### Quick Install
 

@@ -18,20 +18,169 @@ warn()    { echo -e "${YELLOW}[warn]${NC} $1"; }
 error()   { echo -e "${RED}[error]${NC} $1"; }
 
 # --------------------------------------------------------------------------- #
-# GNOME Terminal
+# Distro detection & dependency bootstrap
 # --------------------------------------------------------------------------- #
-install_gnome_terminal() {
-  if ! command -v dconf &>/dev/null; then
-    warn "dconf not found. Skipping GNOME Terminal install."
-    warn "Install it with: sudo apt install dconf-cli"
+DISTRO_ID=""
+DISTRO_LIKE=""
+PKG_MANAGER=""
+INSTALL_CMD=""
+
+detect_distro() {
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    DISTRO_ID="${ID:-unknown}"
+    DISTRO_LIKE="${ID_LIKE:-}"
+  else
+    DISTRO_ID="unknown"
+    DISTRO_LIKE=""
+  fi
+
+  case "$DISTRO_ID $DISTRO_LIKE" in
+    *arch*|*manjaro*)
+      PKG_MANAGER="pacman"
+      INSTALL_CMD="sudo pacman -S --needed --noconfirm"
+      ;;
+    *debian*|*ubuntu*)
+      PKG_MANAGER="apt"
+      INSTALL_CMD="sudo apt install -y"
+      ;;
+    *)
+      PKG_MANAGER=""
+      INSTALL_CMD=""
+      ;;
+  esac
+
+  if [[ -n "$PKG_MANAGER" ]]; then
+    info "Detected distro: ${DISTRO_ID} (using ${PKG_MANAGER})"
+  else
+    warn "Unrecognized distro: ${DISTRO_ID}. Missing dependencies must be installed manually."
+  fi
+}
+
+# Map abstract target -> native package name for the detected package manager.
+pkg_name_for() {
+  local target="$1"
+  case "$PKG_MANAGER:$target" in
+    apt:dconf)             echo "dconf-cli" ;;
+    apt:uuidgen)           echo "uuid-runtime" ;;
+    apt:gnome-terminal)    echo "gnome-terminal" ;;
+    apt:zsh)               echo "zsh" ;;
+    apt:curl)              echo "curl" ;;
+    pacman:dconf)          echo "dconf" ;;
+    pacman:uuidgen)        echo "util-linux" ;;
+    pacman:gnome-terminal) echo "gnome-terminal" ;;
+    pacman:zsh)            echo "zsh" ;;
+    pacman:curl)           echo "curl" ;;
+    *) echo "" ;;
+  esac
+}
+
+# ensure_dep <command> <friendly-name>
+# Returns 0 if the command is available (or was just installed), 1 otherwise.
+ensure_dep() {
+  local cmd="$1" friendly="$2"
+  command -v "$cmd" &>/dev/null && return 0
+
+  local pkg
+  pkg=$(pkg_name_for "$cmd")
+  if [[ -z "$PKG_MANAGER" || -z "$pkg" ]]; then
+    warn "${friendly} not found and distro not recognized. Install '${cmd}' manually and rerun."
     return 1
   fi
 
-  if ! command -v uuidgen &>/dev/null; then
-    warn "uuidgen not found. Skipping GNOME Terminal install."
-    warn "Install it with: sudo apt install uuid-runtime"
+  warn "${friendly} (${cmd}) not found."
+  read -r -p "Install with '${INSTALL_CMD} ${pkg}'? [y/N] " ans
+  if [[ "$ans" =~ ^[Yy]$ ]]; then
+    # shellcheck disable=SC2086
+    if ! $INSTALL_CMD $pkg; then
+      error "Failed to install ${pkg}"
+      return 1
+    fi
+    success "${pkg} installed."
+    # Re-check after install, in case the binary lives in a path hash missed.
+    hash -r 2>/dev/null || true
+    command -v "$cmd" &>/dev/null && return 0
+    warn "${cmd} still not in PATH after install."
     return 1
   fi
+
+  warn "Skipping — install '${pkg}' manually and rerun."
+  return 1
+}
+
+# Install Oh My Zsh itself (not via pkg manager — uses the official script).
+ensure_ohmyzsh() {
+  [[ -d "${HOME}/.oh-my-zsh" ]] && return 0
+
+  warn "Oh My Zsh not installed."
+  read -r -p "Install via official script now? [y/N] " ans
+  if [[ ! "$ans" =~ ^[Yy]$ ]]; then
+    warn "Skipping Oh My Zsh theme. Install from https://ohmyz.sh/ and rerun."
+    return 1
+  fi
+
+  ensure_dep zsh "Zsh shell" || return 1
+  ensure_dep curl "curl" || return 1
+
+  RUNZSH=no CHSH=no sh -c \
+    "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
+    "" --unattended
+}
+
+# Clone a Zsh plugin repo into $ZSH_CUSTOM/plugins/<name> if missing.
+clone_zsh_plugin() {
+  local repo="$1" name="$2"
+  local zsh_custom="${ZSH_CUSTOM:-${HOME}/.oh-my-zsh/custom}"
+  local dest="${zsh_custom}/plugins/${name}"
+
+  [[ -d "$dest" ]] && return 0
+  ensure_dep git "Git" || return 1
+
+  info "Cloning ${name}..."
+  if ! git clone --depth=1 --quiet "$repo" "$dest"; then
+    warn "Failed to clone ${name}"
+    return 1
+  fi
+  success "Plugin ${name} installed at ${dest}"
+}
+
+# Enable a plugin in ~/.zshrc by inserting it into the plugins=(...) list.
+# Idempotent: does nothing if the plugin name is already present.
+enable_zsh_plugin() {
+  local plugin="$1"
+  local zshrc="${HOME}/.zshrc"
+  [[ -f "$zshrc" ]] || return 1
+
+  if grep -qE "^plugins=\([^)]*\b${plugin}\b[^)]*\)" "$zshrc"; then
+    return 0
+  fi
+
+  if grep -qE '^plugins=\([^)]*\)' "$zshrc"; then
+    sed -i -E "s|^(plugins=\([^)]*)\)|\1 ${plugin})|" "$zshrc"
+    success "Enabled '${plugin}' in .zshrc plugins list."
+  else
+    info "Could not auto-edit plugins=(...) in .zshrc. Add '${plugin}' manually."
+  fi
+}
+
+# Install the two prompt-sugar plugins that pair well with the min-dark theme.
+# syntax-highlighting must be LAST in the plugins list — enable order matters.
+install_companion_plugins() {
+  clone_zsh_plugin https://github.com/zsh-users/zsh-autosuggestions     zsh-autosuggestions     || true
+  clone_zsh_plugin https://github.com/zsh-users/zsh-syntax-highlighting zsh-syntax-highlighting || true
+
+  enable_zsh_plugin zsh-autosuggestions
+  enable_zsh_plugin zsh-syntax-highlighting
+}
+
+# --------------------------------------------------------------------------- #
+# GNOME Terminal
+# --------------------------------------------------------------------------- #
+install_gnome_terminal() {
+  ensure_dep dconf "dconf" || return 1
+  ensure_dep uuidgen "uuidgen" || return 1
+  ensure_dep gnome-terminal "GNOME Terminal" || return 1
 
   info "Installing GNOME Terminal profile..."
 
@@ -68,6 +217,9 @@ install_gnome_terminal() {
 # Oh My Zsh
 # --------------------------------------------------------------------------- #
 install_ohmyzsh_theme() {
+  ensure_ohmyzsh || return 1
+  install_companion_plugins
+
   local zsh_custom="${ZSH_CUSTOM:-${HOME}/.oh-my-zsh/custom}"
   local theme_dir="${zsh_custom}/themes/min-dark"
 
@@ -175,6 +327,8 @@ main() {
   echo -e "  ${BLUE}Min Dark Terminal${NC}"
   echo "  Port of Min Theme by Miguel Solorio"
   echo ""
+
+  detect_distro
 
   if [[ $install_gnome -eq 1 ]]; then
     install_gnome_terminal "$set_default"
