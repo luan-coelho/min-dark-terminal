@@ -1,0 +1,16 @@
+[/]
+background-color='rgb(31,31,31)'
+bold-color='rgb(250,250,250)'
+bold-color-same-as-fg=false
+cursor-background-color='rgb(224,224,224)'
+cursor-colors-set=true
+cursor-foreground-color='rgb(31,31,31)'
+foreground-color='rgb(192,192,192)'
+highlight-background-color='rgb(54,54,54)'
+highlight-colors-set=true
+highlight-foreground-color='rgb(250,250,250)'
+palette=['rgb(26,26,26)', 'rgb(255,122,132)', 'rgb(103,171,145)', 'rgb(255,171,112)', 'rgb(121,184,255)', 'rgb(179,146,240)', 'rgb(124,175,194)', 'rgb(224,224,224)', 'rgb(92,92,92)', 'rgb(255,157,166)', 'rgb(137,196,170)', 'rgb(255,192,143)', 'rgb(158,203,255)', 'rgb(201,176,245)', 'rgb(156,197,213)', 'rgb(255,255,255)']
+use-theme-colors=false
+use-theme-transparency=false
+use-transparent-background=false
+visible-name='Min Dark'
