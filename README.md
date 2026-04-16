@@ -4,6 +4,8 @@ A port of [Min Theme](https://github.com/miguelsolorio/min-theme) by **Miguel So
 
 The original Min Theme is a minimal VS Code color theme. This project brings the same aesthetic to your terminal.
 
+![Min Dark Terminal Preview](screenshots/terminal.png)
+
 ## Color Palette
 
 | Color   | Normal    | Bright    |
@@ -40,7 +42,7 @@ The original Min Theme is a minimal VS Code color theme. This project brings the
 ### Quick Install
 
 ```bash
-git clone https://github.com/luancoelho/min-dark-terminal.git
+git clone https://github.com/luan-coelho/min-dark-terminal.git
 cd min-dark-terminal
 ./install.sh --all --default --update-zshrc
 ```
